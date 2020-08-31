@@ -8,7 +8,7 @@ E0 = 2200000  # month's electricity usage (Wh) from user
 month = 1 # electricity usage month from user 
 heating = "electric" # dependent on user input electric or natural gas
 
-# seasonal electricity usage (W) with trend
+# seasonal electricity usage (Wh) with trend
 # if heating is electric, summer demand is inflated by 30% and winter is inflated by 298%
 if heating == "electric":
     if month == 0 or month == 1 or month == 11: # winter months
