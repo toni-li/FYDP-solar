@@ -5,7 +5,6 @@ import numpy as np
 
 # defining parameters
 E0 = 2200000  # month's electricity usage (Wh) from user
-#testing
 month = 1 # electricity usage month from user 
 heating = "electric" # dependent on user input electric or natural gas
 
@@ -82,7 +81,17 @@ for t in range(1,T):
     m.append([quarterly_maintainence, quarterly_maintainence, quarterly_maintainence, quarterly_maintainence])
 
 # capacity factor each season TO-DO
-H = [0.146, 0.146, 0.146, 0.146] 
+Ha = 0.146  # yearly capacity factor
+Sh = [567.5, 784.9, 440.0, 276.3]  # number of sun hours per season
+Avg_Sh = np.mean([Sh])  # average sun hours in year 0
+
+# calculating seasonal CF values wrt seasonal sun hours
+H_0 = Ha + ((Sh[0] - Avg_Sh) * (Ha / Avg_Sh))
+H_1 = Ha + ((Sh[1] - Avg_Sh) * (Ha / Avg_Sh))
+H_2 = Ha + ((Sh[2] - Avg_Sh) * (Ha / Avg_Sh))
+H_3 = Ha + ((Sh[3] - Avg_Sh) * (Ha / Avg_Sh))
+
+H = [H_0, H_1, H_2, H_3]
 
 # find max of all seasons using E @ t=0
 # number of solar panels needed to fulfill at least 100% of electricity from the grid
