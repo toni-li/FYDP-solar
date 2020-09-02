@@ -10,7 +10,7 @@ E0 = 2200000  # spring electricity usage (Wh) from user
 E = [[E0, (E0*1.3), E0, E0]]  # seasonal electricity usage (Wh) with trend
 G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] #cost of electricity from the grid at year 0($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
-B = 15000  # budget from user
+B = 20000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
 Ap = 18.9  # area of solar panel (ft^2) (40 * 68 inches)
 Ar = 1700  # area of the roof (ft^2) from user
@@ -19,7 +19,7 @@ P = 315 # capacity of each solar panel (W) per hour
 F = 2500  # fixed costs of installing solar panels
 d = []  # deterioration factor at year i (%)
 T = 25  # lifespan of solar panels
-S = 3 # 0, 1, 2, 3 = “Spring”, “Summer”, “Fall”, “Winter”
+S = 4 # 0, 1, 2, 3 = “Spring”, “Summer”, “Fall”, “Winter”
 L = [92, 92, 91, 90] # number of days within each quarter
 
 Pb = 13500  # battery capacity from user (W)
@@ -148,7 +148,7 @@ for t in range(T):
 # checking to see if excess energy can be stored in the battery
 # making sure all values are non-negative in the case that no excess energy is generated
 for t in range(T):
-    for s in range(S+1):
+    for s in range(S):
         if dx[t][s] > Pb:
             dx[t][s] = Pb
         if dx[t][s] < 0:
