@@ -35,12 +35,12 @@ for t in range(T):
     yearly_depreciation = (0.0007/4) * t
     d.append([yearly_depreciation, yearly_depreciation, yearly_depreciation, yearly_depreciation])
 
-# function to fill in Et - linearly decreases by 1.03% !!! change
+# function to fill in Et - linearly decreases by 0.2575%
 for t in range(1, T):
-    yearly_decrease_spring = E[t - 1][0] - (E[t - 1][0] * 0.0103)
-    yearly_decrease_summer = E[t - 1][1] - (E[t - 1][1] * 0.0103)
-    yearly_decrease_fall = E[t - 1][2] - (E[t - 1][2] * 0.0103)
-    yearly_decrease_winter = E[t - 1][3] - (E[t - 1][3] * 0.0103)
+    yearly_decrease_spring = E[t - 1][0] - (E[t - 1][0] * 0.002575)
+    yearly_decrease_summer = E[t - 1][1] - (E[t - 1][1] * 0.002575)
+    yearly_decrease_fall = E[t - 1][2] - (E[t - 1][2] * 0.002575)
+    yearly_decrease_winter = E[t - 1][3] - (E[t - 1][3] * 0.002575)
     E.append([yearly_decrease_spring, yearly_decrease_summer, yearly_decrease_fall, yearly_decrease_winter])
 
 # calculating U
@@ -64,7 +64,17 @@ for t in range(1,T):
     m.append([quarterly_maintainence, quarterly_maintainence, quarterly_maintainence, quarterly_maintainence])
 
 # capacity factor each season TO-DO
-H = [0.146, 0.146, 0.146, 0.146] 
+Ha = 0.146  # yearly capacity factor
+Sh = [567.5, 784.9, 440.0, 276.3]  # number of sun hours per season
+Avg_Sh = np.mean([Sh])  # average sun hours in year 0
+
+# calculating seasonal CF values wrt seasonal sun hours
+H_0 = Ha + ((Sh[0] - Avg_Sh) * (Ha / Avg_Sh))
+H_1 = Ha + ((Sh[1] - Avg_Sh) * (Ha / Avg_Sh))
+H_2 = Ha + ((Sh[2] - Avg_Sh) * (Ha / Avg_Sh))
+H_3 = Ha + ((Sh[3] - Avg_Sh) * (Ha / Avg_Sh))
+
+H = [H_0, H_1, H_2, H_3]
 
 # calculating the amount of extra hours the house can use solar energy due to battery system
 hourlyE = (np.mean(E[0])/90)/24 # household demand in watt/hours
