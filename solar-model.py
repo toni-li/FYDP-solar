@@ -5,6 +5,7 @@ import numpy as np
 
 # defining parameters
 E0 = 2200000  # month's electricity usage (Wh) from user
+#testing
 month = 1 # electricity usage month from user 
 heating = "electric" # dependent on user input electric or natural gas
 
