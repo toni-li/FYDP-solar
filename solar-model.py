@@ -246,3 +246,5 @@ plt.title('Carbon Footprint Tradeoff over 25 years')
 
 plt.show()
 
+# oc test
+
