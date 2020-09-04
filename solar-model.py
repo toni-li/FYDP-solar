@@ -50,12 +50,12 @@ for t in range(T):
     yearly_depreciation = (0.0007/4) * t
     d.append([yearly_depreciation, yearly_depreciation, yearly_depreciation, yearly_depreciation])
 
-# function to fill in Et - linearly decreases by 0.2575%
+# function to fill in Et - linearly decreases by 1.03%
 for t in range(1, T):
-    yearly_decrease_spring = E[t - 1][0] - (E[t - 1][0] * 0.002575)
-    yearly_decrease_summer = E[t - 1][1] - (E[t - 1][1] * 0.002575)
-    yearly_decrease_fall = E[t - 1][2] - (E[t - 1][2] * 0.002575)
-    yearly_decrease_winter = E[t - 1][3] - (E[t - 1][3] * 0.002575)
+    yearly_decrease_spring = E[t - 1][0] - (E[t - 1][0] * 0.0103)
+    yearly_decrease_summer = E[t - 1][1] - (E[t - 1][1] * 0.0103)
+    yearly_decrease_fall = E[t - 1][2] - (E[t - 1][2] * 0.0103)
+    yearly_decrease_winter = E[t - 1][3] - (E[t - 1][3] * 0.0103)
     E.append([yearly_decrease_spring, yearly_decrease_summer, yearly_decrease_fall, yearly_decrease_winter])
 
 # calculating U
