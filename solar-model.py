@@ -26,7 +26,7 @@ else:
         E = [[E0, (E0*1.3), E0, E0]]
 
 print(E[0][0])
-G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] #cost of electricity from the grid at year 0($/Wh)
+G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of electricity from the grid at year 0($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
 B = 10000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
@@ -37,7 +37,7 @@ P = 315 # capacity of each solar panel (W) per hour
 F = 2500  # fixed costs of installing solar panels
 d = []  # deterioration factor at year i (%)
 T = 25  # lifespan of solar panels
-S = 3 # 0, 1, 2, 3 = “Spring”, “Summer”, “Fall”, “Winter”
+S = 4 # 0, 1, 2, 3 = “Spring”, “Summer”, “Fall”, “Winter”
 L = [92, 92, 91, 90] # number of days within each quarter
 
 #filling in cost of electricity values (remain constant throughout seasons)
@@ -50,7 +50,7 @@ for t in range(T):
     yearly_depreciation = (0.0007/4) * t
     d.append([yearly_depreciation, yearly_depreciation, yearly_depreciation, yearly_depreciation])
 
-# function to fill in Et - linearly decreases by 1.03% !!! change
+# function to fill in Et - linearly decreases by 1.03%
 for t in range(1, T):
     yearly_decrease_spring = E[t - 1][0] - (E[t - 1][0] * 0.0103)
     yearly_decrease_summer = E[t - 1][1] - (E[t - 1][1] * 0.0103)
@@ -81,7 +81,17 @@ for t in range(1,T):
     m.append([quarterly_maintainence, quarterly_maintainence, quarterly_maintainence, quarterly_maintainence])
 
 # capacity factor each season TO-DO
-H = [0.146, 0.146, 0.146, 0.146] 
+Ha = 0.146  # yearly capacity factor
+Sh = [567.5, 784.9, 440.0, 276.3]  # number of sun hours per season
+Avg_Sh = np.mean([Sh])  # average sun hours in year 0
+
+# calculating seasonal CF values wrt seasonal sun hours
+H_0 = Ha + ((Sh[0] - Avg_Sh) * (Ha / Avg_Sh))
+H_1 = Ha + ((Sh[1] - Avg_Sh) * (Ha / Avg_Sh))
+H_2 = Ha + ((Sh[2] - Avg_Sh) * (Ha / Avg_Sh))
+H_3 = Ha + ((Sh[3] - Avg_Sh) * (Ha / Avg_Sh))
+
+H = [H_0, H_1, H_2, H_3]
 
 # find max of all seasons using E @ t=0
 # number of solar panels needed to fulfill at least 100% of electricity from the grid
@@ -102,7 +112,7 @@ model = Model()
 y = model.add_var(name='y', var_type=INTEGER)  # number of solar panels
 
 # initializing the objective function
-model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] *24 * U * L[s]) * (1 - d[t][s]))) * G[t][s] + (m[t][s] * y) for s in range(S) for t in range(T)))
+model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] * 24 * U * L[s]) * (1 - d[t][s]))) * G[t][s] + (m[t][s] * y) for s in range(S) for t in range(T)))
 
 # adding constraints
 model += (y * C) + F <= B  # budget constraint
@@ -139,21 +149,22 @@ for t in range(T):
     for s in range(S):
         costsWithoutSolarYearly = costsWithoutSolarYearly + E[t][s] * G[t][s]
     costsWithoutSolar.append(costsWithoutSolarYearly)
-#print(costsWithoutSolar)
+# print(costsWithoutSolar)
 
 costsWithSolar = []
 for t in range(T):
     costsWithSolarYearly = 0
     for s in range(S):
-        costsWithSolarYearly = costsWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] *24 * U * L[s]) * (1 - d[t][s]))) * G[t][s])
+        costsWithSolarYearly = costsWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] * 24 * U * L[s]) * (1 - d[t][s]))) * G[t][s])
     costsWithSolar.append(costsWithSolarYearly)
-#print(costsWithSolar)
+# print(costsWithSolar)
+
 
 # set position of bar on X axis
 r1 = np.arange(len(costsWithoutSolar))
 r2 = [x + barWidth for x in r1]
 
-#make the plot
+# make the plot
 plt.bar(r1, costsWithoutSolar, color='#e0e9ddff', width=barWidth, edgecolor='white', label='Cost without solar')
 plt.bar(r2, costsWithSolar, color='#ffe599ff', width=barWidth, edgecolor='white', label='Cost with solar')
 
@@ -174,14 +185,15 @@ fallCostWithoutSolar = np.mean(E[t][2]) * np.mean(G[t][2])
 winterCostWithoutSolar = np.mean(E[t][3]) * np.mean(G[t][3])
 
 seasonalCostWithoutSolar = [springCostWithoutSolar, summerCostWithoutSolar, fallCostWithoutSolar, winterCostWithoutSolar]
-#print(seasonalCostWithoutSolar)
+# print(seasonalCostWithoutSolar)
 
-springCostWithSolar = max(0, (np.mean(E[t][0]) - ((numPanels * P * H[0] *24 * U * L[0]) * (1 - d[t][0]))) * np.mean(G[t][0]))
-summerCostWithSolar = max(0, (np.mean(E[t][1]) - ((numPanels * P * H[1] *24 * U * L[1]) * (1 - d[t][1]))) * np.mean(G[t][1]))
-fallCostWithSolar = max(0, (np.mean(E[t][2]) - ((numPanels * P * H[2] *24 * U * L[2]) * (1 - d[t][2]))) * np.mean(G[t][2]))
-winterCostWithSolar = max(0, (np.mean(E[t][3]) - ((numPanels * P * H[3] *24 * U * L[3]) * (1 - d[t][3]))) * np.mean(G[t][3]))
+springCostWithSolar = max(0, (np.mean(E[t][0]) - ((numPanels * P * H[0] * 24 * U * L[0]) * (1 - d[t][0]))) * np.mean(G[t][0]))
+summerCostWithSolar = max(0, (np.mean(E[t][1]) - ((numPanels * P * H[1] * 24 * U * L[1]) * (1 - d[t][1]))) * np.mean(G[t][1]))
+fallCostWithSolar = max(0, (np.mean(E[t][2]) - ((numPanels * P * H[2] * 24 * U * L[2]) * (1 - d[t][2]))) * np.mean(G[t][2]))
+winterCostWithSolar = max(0, (np.mean(E[t][3]) - ((numPanels * P * H[3] * 24 * U * L[3]) * (1 - d[t][3]))) * np.mean(G[t][3]))
 
 seasonalCostWithSolar = [springCostWithSolar, summerCostWithSolar, fallCostWithSolar, winterCostWithSolar]
+# print(seasonalCostWithSolar)
 
 labelLocations = np.arange(len(seasons))  # the label locations
 width = 0.35  # the width of the bars
@@ -209,12 +221,12 @@ for t in range(T):
 savings = []
 for t in range(T):
     savings.append(costsWithoutSolar[t] - costsWithSolar[t])
-#print(np.sum(savings)) # total savings
+# print(np.sum(savings)) # total savings
 
 yoySavings = [totalCost]
 for t in range(1, T):
     yoySavings.append(max(0,yoySavings[t-1] - savings[t-1]))
-#print(yoySavings)
+# print(yoySavings)
 
 plt.xlim(0, 25)
 plt.ylim(0, totalCost + 1000)
