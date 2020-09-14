@@ -5,7 +5,7 @@ import numpy as np
 
 # defining parameters
 E0 = 2200000  # month's electricity usage (Wh) from user
-month = 5 # electricity usage month from user 
+month = 1 # electricity usage month from user 
 heating = "electric" # dependent on user input electric or natural gas
 
 # seasonal electricity usage (Wh) with trend
@@ -99,7 +99,18 @@ P_1 = math.ceil((E[0][1] / L[1]) / (P * H[1] *24 * U) * 0.35)
 P_2 = math.ceil((E[0][2] / L[2]) / (P * H[2] *24 * U) * 0.35)
 P_3 = math.ceil((E[0][3] / L[3]) / (P * H[3] *24 * U) * 0.35)
 
-Pn = max(P_0, P_1,P_2,P_3)                            
+Pn = max(P_0, P_1,P_2,P_3) 
+
+# get mean demand and deterioration 
+R_0_E = np.mean(E[t][0])
+R_0_D = np.mean(d[t][0])
+R_1_E = np.mean(E[t][1])
+R_1_D = np.mean(d[t][1])
+R_2_E = np.mean(E[t][2])
+R_2_D = np.mean(d[t][2])
+R_3_E = np.mean(E[t][3])
+R_3_D = np.mean(d[t][3])
+
 # initializing model
 model = Model()
 
@@ -113,12 +124,12 @@ model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] * 24 * U * L[s]) * (1 
 model += (y * C) + F <= B  # budget constraint
 model += y * Ap <= Armax  # area of roof constraint 
 model += Pn - y >= 0 # fulfill demand constraint
+# can't generate more electricity than needed each season on average over lifetime of the panels
+model += (R_0_E - ((y * P * H[0] * 24 * U * L[0]) * (1 - R_0_D))) >= 0
+model += (R_1_E - ((y * P * H[1] * 24 * U * L[1]) * (1 - R_1_D))) >= 0 
+model += (R_2_E - ((y * P * H[2] * 24 * U * L[2]) * (1 - R_2_D))) >= 0 
+model += (R_3_E - ((y * P * H[3] * 24 * U * L[3]) * (1 - R_3_D))) >= 0
 model += y >= 0  # non-negativity constraint
-# can't generate more electricity than needed each season in year 24
-model += (E[24][0] - ((y * P * H[0] * 24 * U * L[0]) * (1 - d[24][0]))) >= 0
-model += (E[24][1] - ((y * P * H[1] * 24 * U * L[1]) * (1 - d[24][1]))) >= 0 
-model += (E[24][2] - ((y * P * H[2] * 24 * U * L[2]) * (1 - d[24][2]))) >= 0 
-model += (E[24][3] - ((y * P * H[3] * 24 * U * L[3]) * (1 - d[24][3]))) >= 0
 
 # solving the MIP
 status = model.optimize()
