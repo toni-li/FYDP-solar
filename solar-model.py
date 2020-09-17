@@ -12,7 +12,7 @@ heating = "electric" # dependent on user input electric or natural gas
 # if heating is electric, summer demand is inflated by 30% and winter is inflated by 298%
 if heating == "electric":
     if month == 0 or month == 1 or month == 11: # winter months
-        E = [[(E0/2.98), (E0/(2.98-1.3)), (E0/2.98), E0]]
+        E = [[(E0/2.98), (E0/2.98*(1.3)), (E0/2.98), E0]]
     elif month == 5 or month == 6 or month == 7: # summer months
         E = [[E0/1.3, E0, E0/1.3, E0/1.3*(2.98)]]
     else:
