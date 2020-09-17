@@ -8,7 +8,8 @@ import numpy as np
 # defining parameters
 E0 = 2200000  # spring electricity usage (Wh) from user
 E = [[E0, (E0*1.3), E0, E0]]  # seasonal electricity usage (Wh) with trend
-G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] #cost of electricity from the grid at year 0($/Wh)
+G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] #cost of on-peak electricity from the grid at year 0($/Wh)
+J = [[0.00010302,0.00010302,0.00010302,0.00010302]] #cost of off-peak electricity from the grid at year 0($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
 B = 20000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
@@ -21,14 +22,20 @@ d = []  # deterioration factor at year i (%)
 T = 25  # lifespan of solar panels
 S = 4 # 0, 1, 2, 3 = “Spring”, “Summer”, “Fall”, “Winter”
 L = [92, 92, 91, 90] # number of days within each quarter
+M = 1000000 #Big M used in constraints for binary var
 
 Pb = 13500  # battery capacity from user (W)
 DoD = 0.8  # depth of discharge for battery system (%)
 
-#filling in cost of electricity values (remain constant throughout seasons)
+#filling in cost of on-peak electricity values (remain constant throughout seasons)
 for t in range(1, T):
     yearly_cost = G[t - 1][0] + (G[t - 1][0] * 0.02)
     G.append([yearly_cost, yearly_cost, yearly_cost, yearly_cost])
+
+#filling in cost of off-peak electricity values (remain constant throughout seasons)
+for t in range(1, T):
+    yearly_cost = J[t - 1][0] + (J[t - 1][0] * 0.02)
+    J.append([yearly_cost, yearly_cost, yearly_cost, yearly_cost])
 
 # filling in depreciation values (remain constant throughout seasons)
 for t in range(T):
@@ -93,15 +100,42 @@ model = Model()
 
 # initializing decision variable
 y = model.add_var(name='y', var_type=INTEGER)  # number of solar panels
+#x = model.add_var((name='x', var_type=BINARY) for s in range(S) for t in range(T))  #binary var for seasonal excess (0 if generated, 1 ow.)
+#x = [ model.add_var(name = 'x', var_type=BINARY) for s in range(S) for t in range(T)]
+#x = model.add_var(S, T, var_type=BINARY, name="x")
+#x = [model.add_var(var_type=BINARY) for s in range(S)]
+#x = [ model.add_var(var_type=BINARY) for s in range(S) ]
+x = [[ model.add_var(var_type=BINARY) for s in range(S)] for t in range(T)]
+
 
 # initializing the objective function
-model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] *24 * L[s]) * (1 - d[t][s]))) * G[t][s] + (m[t][s] * y) for s in range(S) for t in range(T)))
+#model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] *24 * L[s]) * (1 - d[t][s]))) * G[t][s] + (m[t][s] * y) for s in range(S) for t in range(T)))
+model.objective = minimize(xsum(((0.35 * E[t][s] - ((y * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * (G[t][s] * x[t][s])) + (0.65 * E[t][s] - ((y * P * H[s] * 24 * L[s]) * (1 - d[t][s])) * J[t][s]) + (m[t][s] * y) for s in range(S) for t in range(T)))
 
 # adding constraints
 model += (y * C) + F <= B  # budget constraint
 model += y * Ap <= Armax  # area of roof constraint
 model += Pn - y >= 0  # fulfill demand constraint
 model += y >= 0  # non-negativity constraint
+
+# new constraints
+# seasonal excess cannot exceed off-peak demand (#5)
+model += (0.65 * E[t][s] - (((y * P * H[s] * L[s] * 24) * (1-d[t][s])) - 0.35 * E[t][s]) >= 0 for s in range(S) for t in range(T))
+
+# binary constraints to reduce 1st term in OF to be 0 (#6/7)
+model += (((0.35 * E[t][s]) <= ((y * P * H[s] * L[s] * 24) * (1-d[t][s])) + (M * x[t][s])) for s in range(S) for t in range(T))
+
+# binary constraints to reduce 1st term in OF to be 0 (#6/7)
+model += ((0.35 * E[t][s]) >= ((y * P * H[s] * L[s] * 24) * (1-d[t][s])) - (M * (1-(x[t][s]))) for s in range(S) for t in range(T))
+
+# Seasonal excess per day cannot exceed the capacity of the battery (with DoD considered)
+model += ((((y * P * H[0] * L[0] * 24) * (1-d[t][0])) - (0.35 * E[t][0])) / (L[0]) <= (Pb * DoD) for t in range(T))
+
+model += ((((y * P * H[1] * L[1] * 24) * (1-d[t][1])) - (0.35 * E[t][1])) / (L[1]) <= (Pb * DoD) for t in range(T))
+
+model += ((((y * P * H[2] * L[2] * 24) * (1-d[t][2])) - (0.35 * E[t][2])) / (L[2]) <= (Pb * DoD) for t in range(T))
+
+model += ((((y * P * H[3] * L[3] * 24) * (1-d[t][3])) - (0.35 * E[t][3])) / (L[3]) <= (Pb * DoD) for t in range(T))
 
 # solving the MIP
 status = model.optimize()
