@@ -12,7 +12,7 @@ heating = "electric" # dependent on user input electric or natural gas
 # if heating is electric, summer demand is inflated by 30% and winter is inflated by 298%
 if heating == "electric":
     if month == 0 or month == 1 or month == 11: # winter months
-        E = [[(E0/2.98), (E0/(2.98-1.3)), (E0/2.98), E0]]
+        E = [[(E0/2.98), (E0/2.98*(1.3)), (E0/2.98), E0]]
     elif month == 5 or month == 6 or month == 7: # summer months
         E = [[E0/1.3, E0, E0/1.3, E0/1.3*(2.98)]]
     else:
@@ -25,10 +25,9 @@ else:
     else:
         E = [[E0, (E0*1.3), E0, E0]]
 
-print(E[0][0])
 G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of electricity from the grid at year 0($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
-B = 10000  # budget from user
+B = 20000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
 Ap = 18.9  # area of solar panel (ft^2) (40 * 68 inches)
 Ar = 1700  # area of the roof (ft^2) from user
@@ -83,13 +82,21 @@ P_0 = math.ceil((E[0][0] / L[0]) / (P * H[0] *24) * 0.35)
 P_1 = math.ceil((E[0][1] / L[1]) / (P * H[1] *24) * 0.35)
 P_2 = math.ceil((E[0][2] / L[2]) / (P * H[2] *24) * 0.35)
 P_3 = math.ceil((E[0][3] / L[3]) / (P * H[3] *24) * 0.35)
- 
-Pn = max(P_0, P_1, P_2, P_3)
 
-print(P_0, P_1, P_2)
-print(max(P_0, P_1, P_2))
-                            
-# initializing model
+Pn = max(P_0, P_1,P_2,P_3) 
+
+# get mean demand and deterioration 
+R_0_E = np.mean(E[t][0])
+R_0_D = np.mean(d[t][0])
+R_1_E = np.mean(E[t][1])
+R_1_D = np.mean(d[t][1])
+R_2_E = np.mean(E[t][2])
+R_2_D = np.mean(d[t][2])
+R_3_E = np.mean(E[t][3])
+R_3_D = np.mean(d[t][3])
+
+# initializing 
+
 model = Model()
 
 # initializing decision variable
@@ -101,7 +108,12 @@ model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] * 24 * L[s]) * (1 - d[
 # adding constraints
 model += (y * C) + F <= B  # budget constraint
 model += y * Ap <= Armax  # area of roof constraint 
-model += Pn - y >= 0  # fulfill demand constraint
+model += Pn - y >= 0 # fulfill demand constraint
+# can't generate more electricity than needed each season on average over lifetime of the panels
+model += (R_0_E - ((y * P * H[0] * 24 * L[0]) * (1 - R_0_D))) >= 0
+model += (R_1_E - ((y * P * H[1] * 24 * L[1]) * (1 - R_1_D))) >= 0 
+model += (R_2_E - ((y * P * H[2] * 24 * L[2]) * (1 - R_2_D))) >= 0 
+model += (R_3_E - ((y * P * H[3] * 24 * L[3]) * (1 - R_3_D))) >= 0
 model += y >= 0  # non-negativity constraint
 
 # solving the MIP
@@ -241,4 +253,3 @@ plt.ylabel('CO2 kg')
 plt.title('Carbon Footprint Tradeoff over 25 years')
 
 plt.show()
-
