@@ -126,25 +126,25 @@ def objective(decisionVars):
 # defining constraints
 def constraint1(decisionVars):  # budget constraint
     y = decisionVars[0]
-    return (-1) * y * C + F - B  # adding in the * -1 to flip the inequality to be >= 0
+    return (-1) * (y * C + F - B)  # adding in the * -1 to flip the inequality to be >= 0
 def constraint2(decisionVars):  # area of roof constraint
     y = decisionVars[0]
-    return (-1) * y * Ap - Ar # adding in the * -1 to flip the inequality to be >= 0
+    return (-1) * (y * Ap - Ar) # adding in the * -1 to flip the inequality to be >= 0
 def constraint3(decisionVars): # optimal number of panels should not exceed the number of panels needed to fulfill highest demand constraint
     y = decisionVars[0]
-    return (-1) * y - ((0.35 * E[0][1])/(P * H[1] * L[1] * 24))
+    return (-1) * (y - ((0.35 * E[0][1])/(P * H[1] * L[1] * 24)))
 def constraint4a(decisionVars): # seasonal excess per day cannot exceed the capacity of the battery constraint for Spring
     y = decisionVars[0]
-    return (-1) * ((((y * P * H[0] * L[0] * 24) * (1 - d[24][0])) - 0.35 * E[24][0])/L[0]) - (Pb * DoD)
+    return (-1) * (((((y * P * H[0] * L[0] * 24) * (1 - d[24][0])) - 0.35 * E[24][0])/L[0]) - (Pb * DoD))
 def constraint4b(decisionVars): # seasonal excess per day cannot exceed the capacity of the battery constraint for Summer
     y = decisionVars[0]
-    return (-1) * ((((y * P * H[1] * L[1] * 24) * (1 - d[24][1])) - 0.35 * E[24][1])/L[1]) - (Pb * DoD)
+    return (-1) * (((((y * P * H[1] * L[1] * 24) * (1 - d[24][1])) - 0.35 * E[24][1])/L[1]) - (Pb * DoD))
 def constraint4c(decisionVars): # seasonal excess per day cannot exceed the capacity of the battery constraint for Fall
     y = decisionVars[0]
-    return (-1) * ((((y * P * H[2] * L[2] * 24) * (1 - d[24][2])) - 0.35 * E[24][2])/L[2]) - (Pb * DoD)
+    return (-1) * (((((y * P * H[2] * L[2] * 24) * (1 - d[24][2])) - 0.35 * E[24][2])/L[2]) - (Pb * DoD))
 def constraint4d(decisionVars): # seasonal excess per day cannot exceed the capacity of the battery constraint for Winter
     y = decisionVars[0]
-    return (-1) * ((((y * P * H[3] * L[3] * 24) * (1 - d[24][3])) - 0.35 * E[24][3])/L[3]) - (Pb * DoD)
+    return (-1) * (((((y * P * H[3] * L[3] * 24) * (1 - d[24][3])) - 0.35 * E[24][3])/L[3]) - (Pb * DoD))
 def constraint5a(decisionVars): # seasonal excess cannot exceed off-peak demand constraint for Spring
     y = decisionVars[0]
     return 0.65 * E[0][0] - (((y * P * H[0] * L[0] * 24) * (1 - d[0][0])) - (0.35 * E[0][0]))
@@ -157,7 +157,30 @@ def constraint5c(decisionVars): # seasonal excess cannot exceed off-peak demand 
 def constraint5d(decisionVars): # seasonal excess cannot exceed off-peak demand constraint for Winter
     y = decisionVars[0]
     return 0.65 * E[0][3] - (((y * P * H[3] * L[3] * 24) * (1 - d[0][3])) - (0.35 * E[0][3]))
+def constraint6(decisionVars): # binary constraints to turn off and on OF when there is excess constraint
+    y = decisionVars[0]
+    x = [[decisionVars[1], decisionVars[2], decisionVars[3], decisionVars[4]]]
+    M = 1000000000
+    for i in range(5, T*S, 4):
+            x.append([decisionVars[i], decisionVars[i+1], decisionVars[i+2], decisionVars[i+3]])
 
+    temp = [[]]
+    for t in range(T):
+        for s in range(S):
+            temp = (-1) * (0.35 * E[t][s] - ((y * P * H[s] * L[s] * 24) * (1 - d[t][s])) - M * x[t][s])
+    return temp
+def constraint7(decisionVars): # binary constraints to turn off and on OF when there is excess constraint
+    y = decisionVars[0]
+    x = [[decisionVars[1], decisionVars[2], decisionVars[3], decisionVars[4]]]
+    M = 1000000000
+    for i in range(5, T*S, 4):
+            x.append([decisionVars[i], decisionVars[i+1], decisionVars[i+2], decisionVars[i+3]])
+
+    temp = [[]]
+    for t in range(T):
+        for s in range(S):
+            temp = (0.35 * E[t][s] - ((y * P * H[s] * L[s] * 24) * (1 - d[t][s])) + M - (M * x[t][s]))
+    return temp
 
 # setting constraints
 con1 = {'type': 'ineq', 'fun': constraint1}
@@ -171,7 +194,9 @@ con5a = {'type': 'ineq', 'fun': constraint5a}
 con5b = {'type': 'ineq', 'fun': constraint5b}
 con5c = {'type': 'ineq', 'fun': constraint5c}
 con5d = {'type': 'ineq', 'fun': constraint5d}
-cons = [con1, con2, con3, con4a, con4b, con4c, con4d, con5a, con5b, con5c, con5d]
+con6 = {'type': 'ineq', 'fun': constraint6}
+con7 = {'type': 'ineq', 'fun': constraint7}
+cons = [con1, con2, con3, con4a, con4b, con4c, con4d, con5a, con5b, con5c, con5d, con6, con7]
 
 # setting bounds
 bnds = [[0, None]]
@@ -180,9 +205,9 @@ for t in range(T):
         bnds.append([0.0, 1.0])
 
 # initial guess
-initialGuess = [109]
+initialGuess = [20]
 for t in range(T*S):
-    initialGuess.append(1)
+    initialGuess.append(0)
 
 sol = minimize(objective, initialGuess, method='SLSQP', bounds=bnds, constraints=cons)
 
