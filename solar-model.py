@@ -5,7 +5,7 @@ import numpy as np
 
 # defining parameters
 E0 = 2200000  # month's electricity usage (Wh) from user
-month = 1 # electricity usage month from user 
+month = 1 # electricity usage month from user
 heating = "electric" # dependent on user input electric or natural gas
 
 # seasonal electricity usage (Wh) with trend
@@ -27,7 +27,7 @@ else:
 
 G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of electricity from the grid at year 0($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
-B = 20000  # budget from user
+B = 10000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
 Ap = 18.9  # area of solar panel (ft^2) (40 * 68 inches)
 Ar = 1700  # area of the roof (ft^2) from user

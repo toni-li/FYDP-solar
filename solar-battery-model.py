@@ -6,8 +6,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # defining parameters
-E0 = 220000  # spring electricity usage (Wh) from user
-E = [[E0, (E0 * 1.3), E0, E0]]  # seasonal electricity usage (Wh) with trend
+E0 = 2200000  # month's electricity usage (Wh) from user
+month = 1 # electricity usage month from user
+heating = "electric" # dependent on user input electric or natural gas
+
+# seasonal electricity usage (Wh) with trend
+# if heating is electric, summer demand is inflated by 30% and winter is inflated by 298%
+if heating == "electric":
+    if month == 0 or month == 1 or month == 11: # winter months
+        E = [[(E0/2.98), (E0/2.98*(1.3)), (E0/2.98), E0]]
+    elif month == 5 or month == 6 or month == 7: # summer months
+        E = [[E0/1.3, E0, E0/1.3, E0/1.3*(2.98)]]
+    else:
+        E = [[E0, (E0*1.3), E0, (E0*2.98)]]
+
+# if heating is natural gas, summer is inflated by 30% and fall, winter, summer are same
+else:
+    if month == 5 or month == 6 or month == 7: # summer months
+        E = [[E0/1.3, E0, E0/1.3, E0/1.3]]
+    else:
+        E = [[E0, (E0*1.3), E0, E0]]
+
+#E = [[E0, (E0 * 1.3), E0, E0]]  # seasonal electricity usage (Wh) with trend
 G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]]  # cost of electricity from the grid at year 0($/Wh)
 J = [[0.00010302, 0.00010302, 0.00010302, 0.00010302]]  # cost of off-peak electricity from the grid at year 0 ($/Wh)
 m = [[2.5, 2.5, 2.5, 2.5]]  # yearly maintenance cost ($/panel)
@@ -113,8 +133,8 @@ model.objective = minimize(xsum(((0.35 * E[t][s] * G[t][s] * x[t][s] - a[t][s] *
 model += (y * C) + F <= B  # Constraint (2): Budget
 model += y * Ap <= Armax  # Constraint (3): Maximum area on the roof
 model += ((0.35 * E[0][1]) / (P * H[1] * L[1] * 24)) - y >= 0  # Constraint (4): Optimal result should not exceed demand at E0
-# for t in range(T):  # Constraint (5a): Seasonal excess per day should not exceed battery capacity in Spring
-#     model += ((y * P * H[0] * L[0] * 24) * (1 - d[t][0]) - 0.35 * E[t][0]) / L[0] <= Pb * DoD
+for t in range(T):  # Constraint (5a): Seasonal excess per day should not exceed battery capacity in Spring
+    model += ((y * P * H[0] * L[0] * 24) * (1 - d[t][0]) - 0.35 * E[t][0]) / L[0] <= Pb * DoD
 for t in range(T):  # Constraint (5b): Seasonal excess per day should not exceed battery capacity in Summer
     model += ((y * P * H[1] * L[1] * 24) * (1 - d[t][1]) - 0.35 * E[t][1]) / L[1] <= Pb * DoD
 for t in range(T):  # Constraint (5c): Seasonal excess per day should not exceed battery capacity in Fall
@@ -130,19 +150,22 @@ for t in range(T): # Constraint (7): Binary constraint to turn first term of OF 
 for t in range(T): # Constraint (8): Binary constraint to turn first term of OF on/off
     for s in range(S):
         model += 0.35*E[t][s] >= ((y*P*H[s]*L[s]*24) * (1-d[t][s])) - M*(1-x[t][s])
-for t in range(T): # Constraint (9): Ensures that auxiliary variable is equal to 0 when xts is 0
+for t in range(T): # Constraint (9): Setting the auxiliary variable to be equal the term that has to be linearized
     for s in range(S):
-        model += a[t][s] <= Pn * x[t][s]
+        model += a[t][s] == y * np.sum(x[t][s])
 for t in range(T): # Constraint (10): Ensures that auxiliary variable is equal to 0 when xts is 0
     for s in range(S):
+        model += a[t][s] <= Pn * x[t][s]
+for t in range(T): # Constraint (11): Ensures that auxiliary variable is equal to 0 when xts is 0
+    for s in range(S):
         model += a[t][s] <= y
-for t in range(T): # Constraint (11): Ensures that auxiliary variable is equal to y when xts is 0
+for t in range(T): # Constraint (12): Ensures that auxiliary variable is equal to y when xts is 0
     for s in range(S):
         model += a[t][s] >= y - ((1-x[t][s]) * Pn)
-for t in range(T): # Constraint (12): Non-negativity for auxiliary variable
+for t in range(T): # Constraint (13): Non-negativity for auxiliary variable
     for s in range(S):
         model += a[t][s] >= 0
-model += y >= 0  # Constraint (13): Non-negativity constraint for y
+model += y >= 0  # Constraint (14): Non-negativity constraint for y
 
 # solving the MIP
 status = model.optimize()
@@ -160,9 +183,9 @@ if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE
         totalCost = 0
     print("Total Capital Cost: $" + str(totalCost))
 
-    for t in range(T): # printing binary variables to check
-        for s in range(S):
-            print(x[t][s].x)
+    # for t in range(T): # printing binary variables to check
+    #     for s in range(S):
+    #         print(x[t][s].x)
 
 if status == OptimizationStatus.NO_SOLUTION_FOUND:
     print("no feasible solution :(")
@@ -184,8 +207,8 @@ for t in range(T):
             dx[t][s] = Pb
         if dx[t][s] < 0:
             dx[t][s] = 0
-        # print(dx)
 
+print(dx)
 # yearly grid energy cost w/o solar vs. yearly grid energy cost w/ solar (grouped bar chart)
 # set width of bar
 barWidth = 0.40
