@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # defining parameters
-E0 = 2200000  # month's electricity usage (Wh) from user
-month = 1 # electricity usage month from user 
+E0 = 2500000  # seasonal electricity usage (Wh) from user
+month = 7 # electricity usage month from user 
 heating = "electric" # dependent on user input electric or natural gas
 postal_code = 'N4S' # first 3 digits of postal code
 
@@ -79,6 +79,8 @@ Avg_Sh = np.mean([Sh])  # average sun hours in year 0
 # calculating seasonal CF values wrt seasonal sun hours
 H_0 = Ha + ((Sh[0] - Avg_Sh) * (Ha / Avg_Sh))
 H_1 = Ha + ((Sh[1] - Avg_Sh) * (Ha / Avg_Sh))
+print("****")
+print(H_1)
 H_2 = Ha + ((Sh[2] - Avg_Sh) * (Ha / Avg_Sh))
 H_3 = Ha + ((Sh[3] - Avg_Sh) * (Ha / Avg_Sh))
 
@@ -116,12 +118,11 @@ model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] * 24 * L[s]) * (1 - d[
 # adding constraints
 model += (y * C) + F <= B  # budget constraint
 model += y * Ap <= Armax  # area of roof constraint 
-model += Pn - y >= 0 # fulfill demand constraint
 # can't generate more electricity than needed each season on average over lifetime of the panels
-model += (R_0_E - ((y * P * H[0] * 24 * L[0]) * (1 - R_0_D))) >= 0
-model += (R_1_E - ((y * P * H[1] * 24 * L[1]) * (1 - R_1_D))) >= 0 
-model += (R_2_E - ((y * P * H[2] * 24 * L[2]) * (1 - R_2_D))) >= 0 
-model += (R_3_E - ((y * P * H[3] * 24 * L[3]) * (1 - R_3_D))) >= 0
+model += (R_0_E*0.35 - ((y * P * H[0] * 24 * L[0]))) >= 0
+model += (R_1_E*0.35 - ((y * P * H[1] * 24 * L[1]))) >= 0 
+model += (R_2_E*0.35 - ((y * P * H[2] * 24 * L[2]))) >= 0 
+model += (R_3_E*0.35 - ((y * P * H[3] * 24 * L[3]))) >= 0
 model += y >= 0  # non-negativity constraint
 
 # solving the MIP
@@ -141,6 +142,7 @@ if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE
     print("Total Capital Cost: $" + str(totalCost))
 if status == OptimizationStatus.NO_SOLUTION_FOUND:
     print("no feasible solution :(")
+
 
 # yearly grid energy cost w/o solar vs. yearly grid energy cost w/ solar (grouped bar chart)
 # set width of bar
