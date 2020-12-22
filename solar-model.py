@@ -119,10 +119,10 @@ model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] * 24 * L[s]) * (1 - d[
 model += (y * C) + F <= B  # budget constraint
 model += y * Ap <= Armax  # area of roof constraint 
 # can't generate more electricity than needed each season on average over lifetime of the panels
-model += (R_0_E*0.35 - ((y * P * H[0] * 24 * L[0]))) >= 0
-model += (R_1_E*0.35 - ((y * P * H[1] * 24 * L[1]))) >= 0 
-model += (R_2_E*0.35 - ((y * P * H[2] * 24 * L[2]))) >= 0 
-model += (R_3_E*0.35 - ((y * P * H[3] * 24 * L[3]))) >= 0
+model += (R_0_E*0.35 - ((y * P * H[0] * 24 * L[0])* (1 - R_0_D))) >= 0
+model += (R_1_E*0.35 - ((y * P * H[1] * 24 * L[1])* (1 - R_1_D))) >= 0 
+model += (R_2_E*0.35 - ((y * P * H[2] * 24 * L[2])* (1 - R_2_D))) >= 0 
+model += (R_3_E*0.35 - ((y * P * H[3] * 24 * L[3])* (1 - R_3_D))) >= 0
 model += y >= 0  # non-negativity constraint
 
 # solving the MIP
