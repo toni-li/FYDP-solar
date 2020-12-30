@@ -5,7 +5,7 @@ import numpy as np
 
 # defining parameters
 E0 = 2500000  # seasonal electricity usage (Wh) from user
-month = 7 # electricity usage month from user 
+month = 4 # electricity usage month from user
 heating = "electric" # dependent on user input electric or natural gas
 postal_code = 'N4S' # first 3 digits of postal code
 
