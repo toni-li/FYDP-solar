@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # defining parameters
-E0 = 2200000  # month's electricity usage (Wh) from user
-month = 1 # electricity usage month from user 
+E0 = 2500000  # seasonal electricity usage (Wh) from user
+month = 7 # electricity usage month from user 
 heating = "electric" # dependent on user input electric or natural gas
 postal_code = 'N4S' # first 3 digits of postal code
 
@@ -79,32 +79,14 @@ Avg_Sh = np.mean([Sh])  # average sun hours in year 0
 # calculating seasonal CF values wrt seasonal sun hours
 H_0 = Ha + ((Sh[0] - Avg_Sh) * (Ha / Avg_Sh))
 H_1 = Ha + ((Sh[1] - Avg_Sh) * (Ha / Avg_Sh))
+print("****")
+print(H_1)
 H_2 = Ha + ((Sh[2] - Avg_Sh) * (Ha / Avg_Sh))
 H_3 = Ha + ((Sh[3] - Avg_Sh) * (Ha / Avg_Sh))
 
 H = [H_0, H_1, H_2, H_3]
 
-# find max of all seasons using E @ t=0
-# number of solar panels needed to fulfill at least 100% of electricity from the grid
-P_0 = math.ceil((E[0][0] / L[0]) / (P * H[0] *24) * 0.35)
-P_1 = math.ceil((E[0][1] / L[1]) / (P * H[1] *24) * 0.35)
-P_2 = math.ceil((E[0][2] / L[2]) / (P * H[2] *24) * 0.35)
-P_3 = math.ceil((E[0][3] / L[3]) / (P * H[3] *24) * 0.35)
-
-Pn = max(P_0, P_1,P_2,P_3) 
-
-# get mean demand and deterioration 
-R_0_E = np.mean(E[t][0])
-R_0_D = np.mean(d[t][0])
-R_1_E = np.mean(E[t][1])
-R_1_D = np.mean(d[t][1])
-R_2_E = np.mean(E[t][2])
-R_2_D = np.mean(d[t][2])
-R_3_E = np.mean(E[t][3])
-R_3_D = np.mean(d[t][3])
-
 # initializing 
-
 model = Model()
 
 # initializing decision variable
@@ -116,12 +98,11 @@ model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] * 24 * L[s]) * (1 - d[
 # adding constraints
 model += (y * C) + F <= B  # budget constraint
 model += y * Ap <= Armax  # area of roof constraint 
-model += Pn - y >= 0 # fulfill demand constraint
 # can't generate more electricity than needed each season on average over lifetime of the panels
-model += (R_0_E - ((y * P * H[0] * 24 * L[0]) * (1 - R_0_D))) >= 0
-model += (R_1_E - ((y * P * H[1] * 24 * L[1]) * (1 - R_1_D))) >= 0 
-model += (R_2_E - ((y * P * H[2] * 24 * L[2]) * (1 - R_2_D))) >= 0 
-model += (R_3_E - ((y * P * H[3] * 24 * L[3]) * (1 - R_3_D))) >= 0
+model += (E[0][0]*0.35 - ((y * P * H[0] * 24 * L[0]))) >= 0
+model += (E[0][1]*0.35 - ((y * P * H[1] * 24 * L[1]))) >= 0 
+model += (E[0][2]*0.35 - ((y * P * H[2] * 24 * L[2]))) >= 0 
+model += (E[0][3]*0.35 - ((y * P * H[3] * 24 * L[3]))) >= 0
 model += y >= 0  # non-negativity constraint
 
 # solving the MIP
@@ -141,6 +122,7 @@ if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE
     print("Total Capital Cost: $" + str(totalCost))
 if status == OptimizationStatus.NO_SOLUTION_FOUND:
     print("no feasible solution :(")
+
 
 # yearly grid energy cost w/o solar vs. yearly grid energy cost w/ solar (grouped bar chart)
 # set width of bar
