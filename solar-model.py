@@ -261,3 +261,10 @@ plt.ylabel('CO2 kg')
 plt.title('Carbon Footprint Tradeoff over 25 years')
 
 plt.show()
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> 60ec9f03bb1fb6c43450c508b0dbc16644f0a89f
