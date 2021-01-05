@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # defining parameters
-E0 = 2166000  # seasonal electricity usage (Wh) from user
+E0 = 5000000  # seasonal electricity usage (Wh) from user
 month = 4 # electricity usage month from user
 heating = "electric" # dependent on user input electric or natural gas
 postal_code = 'M2N' # first 3 digits of postal code
@@ -29,7 +29,7 @@ else:
 G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of electricity from the grid at year 0($/Wh)
 J = [[0.00010302, 0.00010302, 0.00010302, 0.00010302]] # cost of off-peak electricity from the grid at year 0 ($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
-B = 8000  # budget from user
+B = 9000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
 Ap = 18.9  # area of solar panel (ft^2) (40 * 68 inches)
 Ar = 1700  # area of the roof (ft^2) from user
@@ -181,10 +181,22 @@ winterCostWithoutSolar = np.mean(E[t][3]) * np.mean(G[t][3])
 seasonalCostWithoutSolar = [springCostWithoutSolar, summerCostWithoutSolar, fallCostWithoutSolar, winterCostWithoutSolar]
 # print(seasonalCostWithoutSolar)
 
-springCostWithSolar = max(0, (np.mean(E[t][0]) - ((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0]))) * np.mean(G[t][0]))
-summerCostWithSolar = max(0, (np.mean(E[t][1]) - ((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1]))) * np.mean(G[t][1]))
-fallCostWithSolar = max(0, (np.mean(E[t][2]) - ((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2]))) * np.mean(G[t][2]))
-winterCostWithSolar = max(0, (np.mean(E[t][3]) - ((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3]))) * np.mean(G[t][3]))
+# calculating on-peak spend per season
+springOnPeakCost = max(0, np.mean(((0.35*E[t][0]) - ((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0]))) * G[t][0]))
+summerOnPeakCost = max(0, np.mean(((0.35*E[t][1]) - ((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1]))) * G[t][1]))
+fallOnPeakCost = max(0, np.mean(((0.35*E[t][2]) - ((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2]))) * G[t][2]))
+winterOnPeakCost = max(0, np.mean(((0.35*E[t][3]) - ((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3]))) * G[t][3]))
+
+# calculating off-peak spend per season
+springOffPeakCost = np.mean(((0.65*E[t][0])) * J[t][0])
+summerOffPeakCost = np.mean(((0.65*E[t][1])) * J[t][1])
+fallOffPeakCost = np.mean(((0.65*E[t][2])) * J[t][2])
+winterOffPeakCost = np.mean(((0.65*E[t][3])) * J[t][3])
+
+springCostWithSolar = springOnPeakCost + springOffPeakCost
+summerCostWithSolar = summerOnPeakCost + summerOffPeakCost
+fallCostWithSolar = fallOnPeakCost + fallOffPeakCost
+winterCostWithSolar = winterOnPeakCost + winterOffPeakCost
 
 seasonalCostWithSolar = [springCostWithSolar, summerCostWithSolar, fallCostWithSolar, winterCostWithSolar]
 # print(seasonalCostWithSolar)
@@ -220,14 +232,20 @@ for t in range(T):
 yoySavings = [totalCost]
 for t in range(1, T):
     yoySavings.append(max(0,yoySavings[t-1] - savings[t-1]))
-# print(yoySavings)
+
+# calculating slope of the line (y2-y1)/(x2-x1)
+slope = (yoySavings[1]-yoySavings[0])/(1-0)
+#print(slope)
+
+x = np.linspace(0.0, 25.0, 25)
+y = slope*x + totalCost
 
 plt.xlim(0, 25)
 plt.ylim(0, totalCost + 1000)
 plt.xlabel('year')
 plt.ylabel('$')
 plt.title('Payback Period')
-plt.plot(year, yoySavings, color='#e0e9ddff', linewidth=2)
+plt.plot(x, y, color='#e0e9ddff', linewidth=2)
 plt.show()
 
 

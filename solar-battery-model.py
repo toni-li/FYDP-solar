@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # defining parameters
-E0 = 2166000  # seasonal electricity usage (Wh) from user
+E0 = 5000000  # seasonal electricity usage (Wh) from user
 month = 4 # electricity usage month from user
 heating = "electric" # dependent on user input electric or natural gas
 postal_code = 'M2N' # first 3 digits of postal code
@@ -29,7 +29,7 @@ else:
 G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of on-peak electricity from the grid at year 0($/Wh)
 J = [[0.00010302, 0.00010302, 0.00010302, 0.00010302]] # cost of off-peak electricity from the grid at year 0 ($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
-B = 8000  # budget from user
+B = 9000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
 Ap = 18.9  # area of solar panel (ft^2) (40 * 68 inches)
 Ar = 1700  # area of the roof (ft^2) from user
@@ -152,11 +152,11 @@ for t in range(T):
         # calculating how much goes into the battery
         excess = max(0, ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s])) - (0.35 * E[t][s]))
         realExcess = min(Pb*DoD, excess) # can only hold max one battery's worth of excess
-
         offPeakCost = max(0, ((0.65*E[t][s]) - realExcess) * J[t][s])
 
         costsWithSolarYearly = costsWithSolarYearly + onPeakCost + offPeakCost
     costsWithSolar.append(costsWithSolarYearly)
+
 
 # set position of bar on X axis
 r1 = np.arange(len(costsWithoutSolar))
@@ -192,13 +192,13 @@ fallOnPeakCost = max(0, np.mean(((0.35*E[t][2]) - ((numPanels * P * H[2] * 24 * 
 winterOnPeakCost = max(0, np.mean(((0.35*E[t][3]) - ((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3]))) * G[t][3]))
 
 # calculating how much goes into the battery per season
-springExcess = np.mean(((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0])) - (0.35 * E[t][0]))
+springExcess = max(0, np.mean(((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0])) - (0.35 * E[t][0])))
 springRealExcess = min(Pb*DoD*L[0], springExcess)
-summerExcess = np.mean(((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1])) - (0.35 * E[t][1]))
+summerExcess = max(0, np.mean(((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1])) - (0.35 * E[t][1])))
 summerRealExcess = min(Pb*DoD*L[1], summerExcess)
-fallExcess = np.mean(((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2])) - (0.35 * E[t][2]))
+fallExcess = max(0, np.mean(((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2])) - (0.35 * E[t][2])))
 fallRealExcess = min(Pb*DoD*L[2], fallExcess)
-winterExcess = np.mean(((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3])) - (0.35 * E[t][3]))
+winterExcess = max(0, np.mean(((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3])) - (0.35 * E[t][3])))
 winterRealExcess = min(Pb*DoD*L[3], winterExcess)
 
 # calculating off-peak spend per season
@@ -248,12 +248,19 @@ for t in range(1, T):
     yoySavings.append(max(0,yoySavings[t-1] - savings[t-1]))
 # print(yoySavings)
 
+# calculating slope of the line (y2-y1)/(x2-x1)
+slope = (yoySavings[1]-yoySavings[0])/(1-0)
+#print(slope)
+
+x = np.linspace(0.0, 25.0, 25)
+y = slope*x + totalCost
+
 plt.xlim(0, 25)
 plt.ylim(0, totalCost + 1000)
 plt.xlabel('year')
 plt.ylabel('$')
 plt.title('Payback Period')
-plt.plot(year, yoySavings, color='#e0e9ddff', linewidth=2)
+plt.plot(x, y, color='#e0e9ddff', linewidth=2)
 plt.show()
 
 
