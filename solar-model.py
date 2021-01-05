@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # defining parameters
-E0 = 2500000  # seasonal electricity usage (Wh) from user
+E0 = 2166000  # seasonal electricity usage (Wh) from user
 month = 4 # electricity usage month from user
 heating = "electric" # dependent on user input electric or natural gas
-postal_code = 'N4S' # first 3 digits of postal code
+postal_code = 'M2N' # first 3 digits of postal code
 
 # seasonal electricity usage (Wh) with trend
 # if heating is electric, summer demand is inflated by 30% and winter is inflated by 298%
@@ -27,8 +27,9 @@ else:
         E = [[E0, (E0*1.3), E0, E0]]
 
 G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of electricity from the grid at year 0($/Wh)
+J = [[0.00010302, 0.00010302, 0.00010302, 0.00010302]] # cost of off-peak electricity from the grid at year 0 ($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
-B = 15000  # budget from user
+B = 8000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
 Ap = 18.9  # area of solar panel (ft^2) (40 * 68 inches)
 Ar = 1700  # area of the roof (ft^2) from user
@@ -44,6 +45,11 @@ L = [92, 92, 91, 90] # number of days within each quarter
 for t in range(1, T):
     yearly_cost = G[t - 1][0] + (G[t - 1][0] * 0.02)
     G.append([yearly_cost, yearly_cost, yearly_cost, yearly_cost])
+
+# filling in cost of off peak electricity values (remain constant throughout seasons)
+for t in range(1, T):
+    yearly_cost = J[t - 1][0] + (J[t - 1][0] * 0.02)
+    J.append([yearly_cost, yearly_cost, yearly_cost, yearly_cost])
 
 # filling in depreciation values (remain constant throughout seasons)
 for t in range(T):
@@ -141,7 +147,9 @@ costsWithSolar = []
 for t in range(T):
     costsWithSolarYearly = 0
     for s in range(S):
-        costsWithSolarYearly = costsWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * G[t][s])
+        onPeakCost = max(0, ((0.35*E[t][s]) - ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * G[t][s])
+        offPeakCost = (0.65*E[t][s]) * J[t][s]
+        costsWithSolarYearly = costsWithSolarYearly + onPeakCost + offPeakCost
     costsWithSolar.append(costsWithSolarYearly)
 # print(costsWithSolar)
 
