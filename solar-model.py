@@ -257,7 +257,7 @@ demandWithSolar = []
 for t in range(T):
     demandWithSolarYearly = 0
     for s in range(S):
-        demandWithSolarYearly = demandWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] *24 * L[s]) * (1 - d[t][s])))) # will need to change to Gt
+        demandWithSolarYearly = demandWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] *24 * L[s]) * (1 - d[t][s]))))
     demandWithSolar.append(demandWithSolarYearly)  
 
 #print(np.sum(E))
