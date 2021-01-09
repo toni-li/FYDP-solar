@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # defining parameters
-E0 = 2200000  # seasonal electricity usage (Wh) from user
-month = 7 # electricity usage month from user 
-heating = "natural gas" # dependent on user input electric or natural gas
-postal_code = 'N4S' # first 3 digits of postal code
+E0 = 5000000  # seasonal electricity usage (Wh) from user
+month = 4 # electricity usage month from user
+heating = "electric" # dependent on user input electric or natural gas
+postal_code = 'M2N' # first 3 digits of postal code
 
 # seasonal electricity usage (Wh) with trend
 # if heating is electric, summer demand is inflated by 30% and winter is inflated by 298%
@@ -26,9 +26,10 @@ else:
     else:
         E = [[E0, (E0*1.3), E0, E0]]
 
-G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of electricity from the grid at year 0($/Wh)
+G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of on-peak electricity from the grid at year 0($/Wh)
+J = [[0.00010302, 0.00010302, 0.00010302, 0.00010302]] # cost of off-peak electricity from the grid at year 0 ($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
-B = 15000  # budget from user
+B = 9000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
 Ap = 18.9  # area of solar panel (ft^2) (40 * 68 inches)
 Ar = 1700  # area of the roof (ft^2) from user
@@ -43,10 +44,15 @@ L = [92, 92, 91, 90] # number of days within each quarter
 Pb = 13500  # battery capacity from user (W)
 DoD = 0.8  # depth of discharge for battery system (%)
 
-#filling in cost of electricity values (remain constant throughout seasons)
+# filling in cost of on peak electricity values (remain constant throughout seasons)
 for t in range(1, T):
     yearly_cost = G[t - 1][0] + (G[t - 1][0] * 0.02)
     G.append([yearly_cost, yearly_cost, yearly_cost, yearly_cost])
+
+# filling in cost of off peak electricity values (remain constant throughout seasons)
+for t in range(1, T):
+    yearly_cost = J[t - 1][0] + (J[t - 1][0] * 0.02)
+    J.append([yearly_cost, yearly_cost, yearly_cost, yearly_cost])
 
 # filling in depreciation values (remain constant throughout seasons)
 for t in range(T):
@@ -101,8 +107,8 @@ model += (y * C) + F <= B  # budget constraint
 model += y * Ap <= Armax  # area of roof constraint 
 # can't generate more electricity than needed each season on average over lifetime of the panels
 model += (E[0][0]*0.35 + (Pb*DoD*L[0]) - (y * P * H[0] * 24 * L[0])) >= 0
-model += (E[0][1]*0.35 + (Pb*DoD*L[1]) - (y * P * H[1] * 24 * L[1])) >= 0 
-model += (E[0][2]*0.35 + (Pb*DoD*L[2]) - (y * P * H[2] * 24 * L[2])) >= 0 
+model += (E[0][1]*0.35 + (Pb*DoD*L[1]) - (y * P * H[1] * 24 * L[1])) >= 0
+model += (E[0][2]*0.35 + (Pb*DoD*L[2]) - (y * P * H[2] * 24 * L[2])) >= 0
 model += (E[0][3]*0.35 + (Pb*DoD*L[3]) - (y * P * H[3] * 24 * L[3])) >= 0
 model += y >= 0  # non-negativity constraint
 
@@ -133,17 +139,23 @@ costsWithoutSolar = []
 for t in range(T):
     costsWithoutSolarYearly = 0
     for s in range(S):
-        costsWithoutSolarYearly = costsWithoutSolarYearly + E[t][s] * G[t][s]
+        costsWithoutSolarYearly = costsWithoutSolarYearly + (E[t][s]*G[t][s])
     costsWithoutSolar.append(costsWithoutSolarYearly)
-# print(costsWithoutSolar)
+#print(costsWithoutSolar)
 
 costsWithSolar = []
 for t in range(T):
     costsWithSolarYearly = 0
     for s in range(S):
-        costsWithSolarYearly = costsWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * G[t][s])
+        onPeakCost = max(0, ((0.35*E[t][s]) - ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * G[t][s])
+
+        # calculating how much goes into the battery
+        excess = max(0, ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s])) - (0.35 * E[t][s]))
+        realExcess = min(Pb*DoD, excess) # can only hold max one battery's worth of excess
+        offPeakCost = max(0, ((0.65*E[t][s]) - realExcess) * J[t][s])
+
+        costsWithSolarYearly = costsWithSolarYearly + onPeakCost + offPeakCost
     costsWithSolar.append(costsWithSolarYearly)
-# print(costsWithSolar)
 
 
 # set position of bar on X axis
@@ -173,10 +185,32 @@ winterCostWithoutSolar = np.mean(E[t][3]) * np.mean(G[t][3])
 seasonalCostWithoutSolar = [springCostWithoutSolar, summerCostWithoutSolar, fallCostWithoutSolar, winterCostWithoutSolar]
 # print(seasonalCostWithoutSolar)
 
-springCostWithSolar = max(0, (np.mean(E[t][0]) - ((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0]))) * np.mean(G[t][0]))
-summerCostWithSolar = max(0, (np.mean(E[t][1]) - ((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1]))) * np.mean(G[t][1]))
-fallCostWithSolar = max(0, (np.mean(E[t][2]) - ((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2]))) * np.mean(G[t][2]))
-winterCostWithSolar = max(0, (np.mean(E[t][3]) - ((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3]))) * np.mean(G[t][3]))
+# calculating on-peak spend per season
+springOnPeakCost = max(0, np.mean(((0.35*E[t][0]) - ((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0]))) * G[t][0]))
+summerOnPeakCost = max(0, np.mean(((0.35*E[t][1]) - ((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1]))) * G[t][1]))
+fallOnPeakCost = max(0, np.mean(((0.35*E[t][2]) - ((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2]))) * G[t][2]))
+winterOnPeakCost = max(0, np.mean(((0.35*E[t][3]) - ((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3]))) * G[t][3]))
+
+# calculating how much goes into the battery per season
+springExcess = max(0, np.mean(((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0])) - (0.35 * E[t][0])))
+springRealExcess = min(Pb*DoD*L[0], springExcess)
+summerExcess = max(0, np.mean(((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1])) - (0.35 * E[t][1])))
+summerRealExcess = min(Pb*DoD*L[1], summerExcess)
+fallExcess = max(0, np.mean(((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2])) - (0.35 * E[t][2])))
+fallRealExcess = min(Pb*DoD*L[2], fallExcess)
+winterExcess = max(0, np.mean(((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3])) - (0.35 * E[t][3])))
+winterRealExcess = min(Pb*DoD*L[3], winterExcess)
+
+# calculating off-peak spend per season
+springOffPeakCost = max(0, np.mean(((0.65*E[t][0]) - springExcess) * J[t][0]))
+summerOffPeakCost = max(0, np.mean(((0.65*E[t][1]) - summerExcess) * J[t][1]))
+fallOffPeakCost = max(0, np.mean(((0.65*E[t][2]) - fallExcess) * J[t][2]))
+winterOffPeakCost = max(0, np.mean(((0.65*E[t][3]) - winterExcess) * J[t][3]))
+
+springCostWithSolar = springOnPeakCost + springOffPeakCost
+summerCostWithSolar = summerOnPeakCost + summerOffPeakCost
+fallCostWithSolar = fallOnPeakCost + fallOffPeakCost
+winterCostWithSolar = winterOnPeakCost + winterOffPeakCost
 
 seasonalCostWithSolar = [springCostWithSolar, summerCostWithSolar, fallCostWithSolar, winterCostWithSolar]
 # print(seasonalCostWithSolar)
@@ -214,12 +248,19 @@ for t in range(1, T):
     yoySavings.append(max(0,yoySavings[t-1] - savings[t-1]))
 # print(yoySavings)
 
+# calculating slope of the line (y2-y1)/(x2-x1)
+slope = (yoySavings[1]-yoySavings[0])/(1-0)
+#print(slope)
+
+x = np.linspace(0.0, 25.0, 25)
+y = slope*x + totalCost
+
 plt.xlim(0, 25)
 plt.ylim(0, totalCost + 1000)
 plt.xlabel('year')
 plt.ylabel('$')
 plt.title('Payback Period')
-plt.plot(year, yoySavings, color='#e0e9ddff', linewidth=2)
+plt.plot(x, y, color='#e0e9ddff', linewidth=2)
 plt.show()
 
 
@@ -231,8 +272,8 @@ demandWithSolar = []
 for t in range(T):
     demandWithSolarYearly = 0
     for s in range(S):
-        demandWithSolarYearly = demandWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] *24 * L[s]) * (1 - d[t][s])))) # will need to change to Gt
-    demandWithSolar.append(demandWithSolarYearly)  
+        demandWithSolarYearly = demandWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s]))))
+    demandWithSolar.append(demandWithSolarYearly)
 
 #print(np.sum(E))
 #print(np.sum(demandWithSolar))
