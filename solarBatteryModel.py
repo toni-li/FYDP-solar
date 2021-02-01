@@ -3,6 +3,8 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pulp import *
+
 # defining parameters
 E0 = 5000000  # seasonal electricity usage (Wh) from user
 month = 4 # electricity usage month from user
@@ -26,10 +28,10 @@ else:
     else:
         E = [[E0, (E0*1.3), E0, E0]]
 
-G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of electricity from the grid at year 0($/Wh)
+G = [[0.00017952, 0.00017952, 0.00017952, 0.00017952]] # cost of on-peak electricity from the grid at year 0($/Wh)
 J = [[0.00010302, 0.00010302, 0.00010302, 0.00010302]] # cost of off-peak electricity from the grid at year 0 ($/Wh)
 m = [[2.5,2.5,2.5,2.5]]  # yearly maintenance cost ($/panel)
-B = 9000  # budget from user
+B = 19000  # budget from user
 C = 315*2.80  # cost of each solar panel ($/panel) (12 modules of 60cell)
 Ap = 18.9  # area of solar panel (ft^2) (40 * 68 inches)
 Ar = 1700  # area of the roof (ft^2) from user
@@ -41,7 +43,10 @@ T = 25  # lifespan of solar panels
 S = 4 # 0, 1, 2, 3 = “Spring”, “Summer”, “Fall”, “Winter”
 L = [92, 92, 91, 90] # number of days within each quarter
 
-#filling in cost of electricity values (remain constant throughout seasons)
+Pb = 13500  # battery capacity from user (W)
+DoD = 0.8  # depth of discharge for battery system (%)
+
+# filling in cost of on peak electricity values (remain constant throughout seasons)
 for t in range(1, T):
     yearly_cost = G[t - 1][0] + (G[t - 1][0] * 0.02)
     G.append([yearly_cost, yearly_cost, yearly_cost, yearly_cost])
@@ -85,187 +90,210 @@ Avg_Sh = np.mean([Sh])  # average sun hours in year 0
 # calculating seasonal CF values wrt seasonal sun hours
 H_0 = Ha + ((Sh[0] - Avg_Sh) * (Ha / Avg_Sh))
 H_1 = Ha + ((Sh[1] - Avg_Sh) * (Ha / Avg_Sh))
-print("****")
-print(H_1)
 H_2 = Ha + ((Sh[2] - Avg_Sh) * (Ha / Avg_Sh))
 H_3 = Ha + ((Sh[3] - Avg_Sh) * (Ha / Avg_Sh))
 
 H = [H_0, H_1, H_2, H_3]
 
-# initializing 
-model = Model()
+# initializing
+#model = Model()
+model = LpProblem('Solar Battery Model', LpMinimize)
 
 # initializing decision variable
-y = model.add_var(name='y', var_type=INTEGER)  # number of solar panels
+#y = model.add_var(name='y', var_type=INTEGER)  # number of solar panels
+y = LpVariable('numPanels', lowBound=0, cat=LpInteger) # number of solar panels
 
 # initializing the objective function
-model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * G[t][s] + (m[t][s] * y) for s in range(S) for t in range(T)))
+#model.objective = minimize(xsum((E[t][s] - ((y * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * G[t][s] + (m[t][s] * y) for s in range(S) for t in range(T)))
+model += lpSum((E[t][s] - ((y * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * G[t][s] + (m[t][s] * y) for s in range(S) for t in range(T)), "ObjFunc"
 
 # adding constraints
-model += (y * C) + F <= B  # budget constraint
-model += y * Ap <= Armax  # area of roof constraint 
+model += (y * C) + F <= B, 'Budget'  # budget constraint
+model += y * Ap <= Armax, 'Area'  # area of roof constraint
 # can't generate more electricity than needed each season on average over lifetime of the panels
-model += (E[0][0]*0.35 - ((y * P * H[0] * 24 * L[0]))) >= 0
-model += (E[0][1]*0.35 - ((y * P * H[1] * 24 * L[1]))) >= 0 
-model += (E[0][2]*0.35 - ((y * P * H[2] * 24 * L[2]))) >= 0 
-model += (E[0][3]*0.35 - ((y * P * H[3] * 24 * L[3]))) >= 0
-model += y >= 0  # non-negativity constraint
+model += (E[0][0]*0.35 + (Pb*DoD*L[0]) - (y * P * H[0] * 24 * L[0])) >= 0, 'SD0'
+model += (E[0][1]*0.35 + (Pb*DoD*L[1]) - (y * P * H[1] * 24 * L[1])) >= 0, 'SD1'
+model += (E[0][2]*0.35 + (Pb*DoD*L[2]) - (y * P * H[2] * 24 * L[2])) >= 0, 'SD2'
+model += (E[0][3]*0.35 + (Pb*DoD*L[3]) - (y * P * H[3] * 24 * L[3])) >= 0, 'SD3'
+model += y >= 0, 'NonNeg'  # non-negativity constraint
 
 # solving the MIP
-status = model.optimize()
+#status = model.optimize()
+model.solve()
+print("Z = ", value(model.objective))
+print("Optimal Number of Solar Panels: ", y.varValue)
+print("Optimal Number of Watts to Install: ", y.varValue * P)
+print("Total Capital Cost: $", y.varValue*C + F)
 
 # printing solution
-if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE:
-    print("Z = {}".format(model.objective_value))
-    print("y = {}".format(y.x))  # printing decision variable value
-    numWatts = y.x * P
-    numPanels = y.x
-    print("optimal number of watts to install is: " + str(numWatts) + " W")
-    if numPanels > 0:
-        totalCost = (numPanels * C) + F
-    else:
-        totalCost = 0
-    print("Total Capital Cost: $" + str(totalCost))
-if status == OptimizationStatus.NO_SOLUTION_FOUND:
-    print("no feasible solution :(")
+# if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE:
+#     print("Z = {}".format(model.objective_value))
+#     print("y = {}".format(y.x))  # printing decision variable value
+#     numWatts = y.x * P
+#     numPanels = y.x
+#     print("optimal number of watts to install is: " + str(numWatts) + " W")
+#     if numPanels > 0:
+#         totalCost = (numPanels * C) + F
+#     else:
+#         totalCost = 0
+#     print("Total Capital Cost: $" + str(totalCost))
+# if status == OptimizationStatus.NO_SOLUTION_FOUND:
+#     print("no feasible solution :(")
 
 
-# yearly grid energy cost w/o solar vs. yearly grid energy cost w/ solar (grouped bar chart)
-# set width of bar
-barWidth = 0.40
-
-# set height of each bar
-costsWithoutSolar = []
-for t in range(T):
-    costsWithoutSolarYearly = 0
-    for s in range(S):
-        costsWithoutSolarYearly = costsWithoutSolarYearly + E[t][s] * G[t][s]
-    costsWithoutSolar.append(costsWithoutSolarYearly)
-# print(costsWithoutSolar)
-
-costsWithSolar = []
-for t in range(T):
-    costsWithSolarYearly = 0
-    for s in range(S):
-        onPeakCost = max(0, ((0.35*E[t][s]) - ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * G[t][s])
-        offPeakCost = (0.65*E[t][s]) * J[t][s]
-        costsWithSolarYearly = costsWithSolarYearly + onPeakCost + offPeakCost
-    costsWithSolar.append(costsWithSolarYearly)
-# print(costsWithSolar)
 
 
-# set position of bar on X axis
-r1 = np.arange(len(costsWithoutSolar))
-r2 = [x + barWidth for x in r1]
-
-# make the plot
-plt.bar(r1, costsWithoutSolar, color='#e0e9ddff', width=barWidth, edgecolor='white', label='Cost without solar')
-plt.bar(r2, costsWithSolar, color='#ffe599ff', width=barWidth, edgecolor='white', label='Cost with solar')
-
-plt.xlabel('year')
-plt.ylabel('$')
-plt.title('Annual Spend on Grid Electricity')
-plt.legend()
-plt.show()
-
-
-# seasonal cost w/ solar vs seasonal cost w/o solar
-seasons = ['Spring', 'Summer', 'Fall', 'Winter']
-
-# set height of each bar
-springCostWithoutSolar = np.mean(E[t][0]) * np.mean(G[t][0])
-summerCostWithoutSolar = np.mean(E[t][1]) * np.mean(G[t][1])
-fallCostWithoutSolar = np.mean(E[t][2]) * np.mean(G[t][2])
-winterCostWithoutSolar = np.mean(E[t][3]) * np.mean(G[t][3])
-
-seasonalCostWithoutSolar = [springCostWithoutSolar, summerCostWithoutSolar, fallCostWithoutSolar, winterCostWithoutSolar]
-# print(seasonalCostWithoutSolar)
-
-# calculating on-peak spend per season
-springOnPeakCost = max(0, np.mean(((0.35*E[t][0]) - ((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0]))) * G[t][0]))
-summerOnPeakCost = max(0, np.mean(((0.35*E[t][1]) - ((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1]))) * G[t][1]))
-fallOnPeakCost = max(0, np.mean(((0.35*E[t][2]) - ((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2]))) * G[t][2]))
-winterOnPeakCost = max(0, np.mean(((0.35*E[t][3]) - ((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3]))) * G[t][3]))
-
-# calculating off-peak spend per season
-springOffPeakCost = np.mean(((0.65*E[t][0])) * J[t][0])
-summerOffPeakCost = np.mean(((0.65*E[t][1])) * J[t][1])
-fallOffPeakCost = np.mean(((0.65*E[t][2])) * J[t][2])
-winterOffPeakCost = np.mean(((0.65*E[t][3])) * J[t][3])
-
-springCostWithSolar = springOnPeakCost + springOffPeakCost
-summerCostWithSolar = summerOnPeakCost + summerOffPeakCost
-fallCostWithSolar = fallOnPeakCost + fallOffPeakCost
-winterCostWithSolar = winterOnPeakCost + winterOffPeakCost
-
-seasonalCostWithSolar = [springCostWithSolar, summerCostWithSolar, fallCostWithSolar, winterCostWithSolar]
-# print(seasonalCostWithSolar)
-
-labelLocations = np.arange(len(seasons))  # the label locations
-width = 0.35  # the width of the bars
-
-fig, ax = plt.subplots()
-rects1 = ax.bar(labelLocations - width/2, seasonalCostWithoutSolar, width, label='Seasonal Cost Without Solar', color='#e0e9ddff')
-rects2 = ax.bar(labelLocations + width/2, seasonalCostWithSolar, width, label='Seasonal Cost With Solar', color='#ffe599ff')
-
-# Add some text for labels, title and custom x-axis tick labels, etc.
-ax.set_ylabel('$')
-ax.set_xlabel('Season')
-ax.set_title('Avg. Seasonal Spend on Grid Electricity')
-ax.set_xticks(labelLocations)
-ax.set_xticklabels(seasons)
-ax.legend()
-
-fig.tight_layout()
-plt.show()
-
-# payback period (line graph)
-year = []
-for t in range(T):
-    year.append(t)
-
-savings = []
-for t in range(T):
-    savings.append(costsWithoutSolar[t] - costsWithSolar[t])
-# print(np.sum(savings)) # total savings
-
-yoySavings = [totalCost]
-for t in range(1, T):
-    yoySavings.append(max(0,yoySavings[t-1] - savings[t-1]))
-
-# calculating slope of the line (y2-y1)/(x2-x1)
-slope = (yoySavings[1]-yoySavings[0])/(1-0)
-#print(slope)
-
-x = np.linspace(0.0, 25.0, 25)
-y = slope*x + totalCost
-
-plt.xlim(0, 25)
-plt.ylim(0, totalCost + 1000)
-plt.xlabel('year')
-plt.ylabel('$')
-plt.title('Payback Period')
-plt.plot(x, y, color='#e0e9ddff', linewidth=2)
-plt.show()
-
-
-# carbon footprint tradeoff
-options = ('Without Solar', 'With Solar')
-y_pos = np.arange(len(options))
-
-demandWithSolar = []
-for t in range(T):
-    demandWithSolarYearly = 0
-    for s in range(S):
-        demandWithSolarYearly = demandWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] *24 * L[s]) * (1 - d[t][s]))))
-    demandWithSolar.append(demandWithSolarYearly)  
-
-#print(np.sum(E))
-#print(np.sum(demandWithSolar))
-performance = [np.sum(E)*0.0003916, np.sum(demandWithSolar)*0.0003916]
-plt.bar(y_pos, performance, align='center', alpha=0.5, color='#ffe599ff')
-plt.xticks(y_pos, options)
-plt.ylabel('CO2 kg')
-plt.title('Carbon Footprint Tradeoff over 25 years')
-
-plt.show()
+# # yearly grid energy cost w/o solar vs. yearly grid energy cost w/ solar (grouped bar chart)
+# # set width of bar
+# barWidth = 0.40
+#
+# # set height of each bar
+# costsWithoutSolar = []
+# for t in range(T):
+#     costsWithoutSolarYearly = 0
+#     for s in range(S):
+#         costsWithoutSolarYearly = costsWithoutSolarYearly + (E[t][s]*G[t][s])
+#     costsWithoutSolar.append(costsWithoutSolarYearly)
+# #print(costsWithoutSolar)
+#
+# costsWithSolar = []
+# for t in range(T):
+#     costsWithSolarYearly = 0
+#     for s in range(S):
+#         onPeakCost = max(0, ((0.35*E[t][s]) - ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s]))) * G[t][s])
+#
+#         # calculating how much goes into the battery
+#         excess = max(0, ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s])) - (0.35 * E[t][s]))
+#         realExcess = min(Pb*DoD, excess) # can only hold max one battery's worth of excess
+#         offPeakCost = max(0, ((0.65*E[t][s]) - realExcess) * J[t][s])
+#
+#         costsWithSolarYearly = costsWithSolarYearly + onPeakCost + offPeakCost
+#     costsWithSolar.append(costsWithSolarYearly)
+#
+#
+# # set position of bar on X axis
+# r1 = np.arange(len(costsWithoutSolar))
+# r2 = [x + barWidth for x in r1]
+#
+# # make the plot
+# plt.bar(r1, costsWithoutSolar, color='#e0e9ddff', width=barWidth, edgecolor='white', label='Cost without solar')
+# plt.bar(r2, costsWithSolar, color='#ffe599ff', width=barWidth, edgecolor='white', label='Cost with solar')
+#
+# plt.xlabel('year')
+# plt.ylabel('$')
+# plt.title('Annual Spend on Grid Electricity')
+# plt.legend()
+# plt.show()
+#
+#
+# # seasonal cost w/ solar vs seasonal cost w/o solar
+# seasons = ['Spring', 'Summer', 'Fall', 'Winter']
+#
+# # set height of each bar
+# springCostWithoutSolar = np.mean(E[t][0]) * np.mean(G[t][0])
+# summerCostWithoutSolar = np.mean(E[t][1]) * np.mean(G[t][1])
+# fallCostWithoutSolar = np.mean(E[t][2]) * np.mean(G[t][2])
+# winterCostWithoutSolar = np.mean(E[t][3]) * np.mean(G[t][3])
+#
+# seasonalCostWithoutSolar = [springCostWithoutSolar, summerCostWithoutSolar, fallCostWithoutSolar, winterCostWithoutSolar]
+# # print(seasonalCostWithoutSolar)
+#
+# # calculating on-peak spend per season
+# springOnPeakCost = max(0, np.mean(((0.35*E[t][0]) - ((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0]))) * G[t][0]))
+# summerOnPeakCost = max(0, np.mean(((0.35*E[t][1]) - ((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1]))) * G[t][1]))
+# fallOnPeakCost = max(0, np.mean(((0.35*E[t][2]) - ((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2]))) * G[t][2]))
+# winterOnPeakCost = max(0, np.mean(((0.35*E[t][3]) - ((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3]))) * G[t][3]))
+#
+# # calculating how much goes into the battery per season
+# springExcess = max(0, np.mean(((numPanels * P * H[0] * 24 * L[0]) * (1 - d[t][0])) - (0.35 * E[t][0])))
+# springRealExcess = min(Pb*DoD*L[0], springExcess)
+# summerExcess = max(0, np.mean(((numPanels * P * H[1] * 24 * L[1]) * (1 - d[t][1])) - (0.35 * E[t][1])))
+# summerRealExcess = min(Pb*DoD*L[1], summerExcess)
+# fallExcess = max(0, np.mean(((numPanels * P * H[2] * 24 * L[2]) * (1 - d[t][2])) - (0.35 * E[t][2])))
+# fallRealExcess = min(Pb*DoD*L[2], fallExcess)
+# winterExcess = max(0, np.mean(((numPanels * P * H[3] * 24 * L[3]) * (1 - d[t][3])) - (0.35 * E[t][3])))
+# winterRealExcess = min(Pb*DoD*L[3], winterExcess)
+#
+# # calculating off-peak spend per season
+# springOffPeakCost = max(0, np.mean(((0.65*E[t][0]) - springExcess) * J[t][0]))
+# summerOffPeakCost = max(0, np.mean(((0.65*E[t][1]) - summerExcess) * J[t][1]))
+# fallOffPeakCost = max(0, np.mean(((0.65*E[t][2]) - fallExcess) * J[t][2]))
+# winterOffPeakCost = max(0, np.mean(((0.65*E[t][3]) - winterExcess) * J[t][3]))
+#
+# springCostWithSolar = springOnPeakCost + springOffPeakCost
+# summerCostWithSolar = summerOnPeakCost + summerOffPeakCost
+# fallCostWithSolar = fallOnPeakCost + fallOffPeakCost
+# winterCostWithSolar = winterOnPeakCost + winterOffPeakCost
+#
+# seasonalCostWithSolar = [springCostWithSolar, summerCostWithSolar, fallCostWithSolar, winterCostWithSolar]
+# # print(seasonalCostWithSolar)
+#
+# labelLocations = np.arange(len(seasons))  # the label locations
+# width = 0.35  # the width of the bars
+#
+# fig, ax = plt.subplots()
+# rects1 = ax.bar(labelLocations - width/2, seasonalCostWithoutSolar, width, label='Seasonal Cost Without Solar', color='#e0e9ddff')
+# rects2 = ax.bar(labelLocations + width/2, seasonalCostWithSolar, width, label='Seasonal Cost With Solar', color='#ffe599ff')
+#
+# # Add some text for labels, title and custom x-axis tick labels, etc.
+# ax.set_ylabel('$')
+# ax.set_xlabel('Season')
+# ax.set_title('Avg. Seasonal Spend on Grid Electricity')
+# ax.set_xticks(labelLocations)
+# ax.set_xticklabels(seasons)
+# ax.legend()
+#
+# fig.tight_layout()
+# plt.show()
+#
+# # payback period (line graph)
+# year = []
+# for t in range(T):
+#     year.append(t)
+#
+# savings = []
+# for t in range(T):
+#     savings.append(costsWithoutSolar[t] - costsWithSolar[t])
+# # print(np.sum(savings)) # total savings
+#
+# yoySavings = [totalCost]
+# for t in range(1, T):
+#     yoySavings.append(max(0,yoySavings[t-1] - savings[t-1]))
+# # print(yoySavings)
+#
+# # calculating slope of the line (y2-y1)/(x2-x1)
+# slope = (yoySavings[1]-yoySavings[0])/(1-0)
+# #print(slope)
+#
+# x = np.linspace(0.0, 25.0, 25)
+# y = slope*x + totalCost
+#
+# plt.xlim(0, 25)
+# plt.ylim(0, totalCost + 1000)
+# plt.xlabel('year')
+# plt.ylabel('$')
+# plt.title('Payback Period')
+# plt.plot(x, y, color='#e0e9ddff', linewidth=2)
+# plt.show()
+#
+#
+# # carbon footprint tradeoff
+# options = ('Without Solar', 'With Solar')
+# y_pos = np.arange(len(options))
+#
+# demandWithSolar = []
+# for t in range(T):
+#     demandWithSolarYearly = 0
+#     for s in range(S):
+#         demandWithSolarYearly = demandWithSolarYearly + max(0, (E[t][s] - ((numPanels * P * H[s] * 24 * L[s]) * (1 - d[t][s]))))
+#     demandWithSolar.append(demandWithSolarYearly)
+#
+# #print(np.sum(E))
+# #print(np.sum(demandWithSolar))
+# performance = [np.sum(E)*0.0003916, np.sum(demandWithSolar)*0.0003916]
+# plt.bar(y_pos, performance, align='center', alpha=0.5, color='#ffe599ff')
+# plt.xticks(y_pos, options)
+# plt.ylabel('CO2 kg')
+# plt.title('Carbon Footprint Tradeoff over 25 years')
+#
+# plt.show()

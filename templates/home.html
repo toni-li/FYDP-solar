@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Soli</title>
+
+</head>
+<body>
+    <h1> Model Integration Test </h1>
+    <div class="titles">
+        <form action="{{ url_for('run_model') }}" method="POST">
+            <label for="postal-code"> Postal Code </label>
+            <input name="postal-code">
+            <br><br>
+            <label for="roof-size"> Roof Size </label>
+            <input name="roof-size">
+            <br><br>
+            <label for="usage"> Electricity Usage </label>
+            <input name="usage">
+            <br><br>
+            <label for="month"> Month </label>
+            <input name="month">
+            <br><br>
+            <label for="heating"> Type of Heating </label>
+            <input name="heating">
+            <br><br>
+            <label for="budget"> Budget </label>
+            <input name="budget">
+
+
+            <br><br> <br> <br> <br> <br> <br> <br> <br>
+            <input type="submit" id="submit-button">
+        </form>
+    </div>
+
+</body>
+</html>
